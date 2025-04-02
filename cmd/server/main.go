@@ -2,36 +2,51 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
+	"log"
 
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
-	url := "amqp://guest:guest@localhost:5672/"
+	const rabbitConnString = "amqp://guest:guest@localhost:5672/"
 
-	conn, err := amqp.Dial(url)
+	conn, err := amqp.Dial(rabbitConnString)
 	if err != nil {
-		panic(err)
+		log.Fatalf("could not connect to rabbitmq: %v", err)
 	}
 	defer conn.Close()
 
-	fmt.Println("successfully connected to rabbitmq")
+	fmt.Println("Peril game server connected to rabbitmq!")
 
-	ch, err := conn.Channel()
+	publishChan, err := conn.Channel()
 	if err != nil {
-		panic(err)
+		log.Fatalf("could not create channel: %v", err)
 	}
 
-	pubsub.PublishJSON(ch, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: true})
+	gamelogic.PrintServerHelp()
+	for {
+		words := gamelogic.GetInput()
+		if words == nil {
+			continue
+		}
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	for range c {
-		fmt.Println("recieved ^C, shutting down connection")
-		return
+		switch words[0] {
+		case "pause":
+			pubsub.PublishJSON(publishChan, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: true})
+			fmt.Println("pause message sent!")
+		case "resume":
+			pubsub.PublishJSON(publishChan, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: false})
+			fmt.Println("resume message sent!")
+		case "help":
+			gamelogic.PrintServerHelp()
+		case "quit":
+			fmt.Println("exiting...")
+			return
+		default:
+			fmt.Println("unknown command:", words[0])
+		}
 	}
 }
