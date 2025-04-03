@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -39,9 +38,10 @@ func handlerMove(gs *gamelogic.GameState, publishChan *amqp.Channel) func(gamelo
 				},
 			)
 			if err != nil {
-				log.Fatalf("cannot publish to topic exchange: %v", err)
+				fmt.Println("cannot publish to topic exchange:", err)
+				return pubsub.NackRequeue
 			}
-			return pubsub.NackRequeue
+			return pubsub.Ack
 		}
 
 		fmt.Println("error: unknown move outcome")
@@ -49,6 +49,10 @@ func handlerMove(gs *gamelogic.GameState, publishChan *amqp.Channel) func(gamelo
 	}
 }
 
+// If the outcome is "not involved" the client requeues the message
+// That's so that another client can pick it up and try to process it.
+// The event can only be processed successfully by a client involved in the war.
+// It's a bit janky, but it demonstrates how requeueing works, so here we are.
 func handlerWar(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar) pubsub.AckType {
 	return func(rw gamelogic.RecognitionOfWar) pubsub.AckType {
 		defer fmt.Print("> ")
