@@ -15,13 +15,21 @@ const (
 	SimpleQueueTransient
 )
 
+type AckType int
+
+const (
+	Ack AckType = iota
+	NackRequeue
+	NackDiscard
+)
+
 func SubscribeJSON[T any](
 	conn *amqp.Connection,
 	exchange,
 	queueName,
 	key string,
 	simpleQueueType SimpleQueueType,
-	handler func(T),
+	handler func(T) AckType,
 ) error {
 	ch, queue, err := DeclareAndBind(conn, exchange, queueName, key, simpleQueueType)
 	if err != nil {
@@ -47,9 +55,23 @@ func SubscribeJSON[T any](
 			if err := json.Unmarshal(msg.Body, &unmarshaledMsg); err != nil {
 				log.Fatalf("could not unmarshal: %v", err)
 			}
-			handler(unmarshaledMsg)
-			if err := msg.Ack(false); err != nil {
-				log.Fatalf("could not ack delivery: %v", err)
+			ackType := handler(unmarshaledMsg)
+			switch ackType {
+			case Ack:
+				if err := msg.Ack(false); err != nil {
+					log.Fatalf("could not ack delivery: %v", err)
+				}
+				fmt.Println("Message acked")
+			case NackRequeue:
+				if err := msg.Nack(false, true); err != nil {
+					log.Fatalf("could not nack & requeue delivery: %v", err)
+				}
+				fmt.Println("Message nacked & requeued")
+			case NackDiscard:
+				if err := msg.Nack(false, false); err != nil {
+					log.Fatalf("could not nack & discard delivery: %v", err)
+				}
+				fmt.Println("Message nacked & discarded")
 			}
 		}
 	}()
