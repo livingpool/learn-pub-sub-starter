@@ -55,7 +55,21 @@ func main() {
 		routing.ArmyMovesPrefix+"."+username,
 		routing.ArmyMovesPrefix+".*",
 		pubsub.SimpleQueueTransient,
-		handlerMove(gs),
+		handlerMove(gs, publishChan),
+	)
+	if err != nil {
+		log.Fatalf("could not subscribe to army move: %v", err)
+	}
+
+	// to consumes all the war messages that the "move" handler publishes, no matter the username in the routing key
+	// bind to the war.* routing key
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.WarRecognitionsPrefix,
+		routing.WarRecognitionsPrefix+".*",
+		pubsub.SimpleQueueDurable,
+		handlerWar(gs),
 	)
 	if err != nil {
 		log.Fatalf("could not subscribe to army move: %v", err)
@@ -93,32 +107,5 @@ func main() {
 		default:
 			fmt.Println("unknown command:", words[0])
 		}
-	}
-}
-
-func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) pubsub.AckType {
-	return func(ps routing.PlayingState) pubsub.AckType {
-		defer fmt.Print("> ")
-		gs.HandlePause(ps)
-		return pubsub.Ack
-	}
-}
-
-func handlerMove(gs *gamelogic.GameState) func(gamelogic.ArmyMove) pubsub.AckType {
-	return func(move gamelogic.ArmyMove) pubsub.AckType {
-		defer fmt.Print("> ")
-
-		moveOutcome := gs.HandleMove(move)
-		switch moveOutcome {
-		case gamelogic.MoveOutcomeSamePlayer:
-			return pubsub.NackDiscard
-		case gamelogic.MoveOutComeSafe:
-			return pubsub.Ack
-		case gamelogic.MoveOutcomeMakeWar:
-			return pubsub.Ack
-		}
-
-		fmt.Println("error: unknown move outcome")
-		return pubsub.NackDiscard
 	}
 }
