@@ -61,17 +61,14 @@ func SubscribeJSON[T any](
 				if err := msg.Ack(false); err != nil {
 					log.Fatalf("could not ack delivery: %v", err)
 				}
-				fmt.Println("Message acked")
 			case NackRequeue:
 				if err := msg.Nack(false, true); err != nil {
 					log.Fatalf("could not nack & requeue delivery: %v", err)
 				}
-				fmt.Println("Message nacked & requeued")
 			case NackDiscard:
 				if err := msg.Nack(false, false); err != nil {
 					log.Fatalf("could not nack & discard delivery: %v", err)
 				}
-				fmt.Println("Message nacked & discarded")
 			}
 		}
 	}()

@@ -69,7 +69,7 @@ func main() {
 		routing.WarRecognitionsPrefix,
 		routing.WarRecognitionsPrefix+".*",
 		pubsub.SimpleQueueDurable,
-		handlerWar(gs),
+		handlerWar(gs, publishChan),
 	)
 	if err != nil {
 		log.Fatalf("could not subscribe to army move: %v", err)
@@ -77,7 +77,7 @@ func main() {
 
 	for {
 		words := gamelogic.GetInput()
-		if words == nil {
+		if len(words) == 0 {
 			continue
 		}
 
